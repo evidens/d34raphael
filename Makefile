@@ -18,6 +18,7 @@ all: \
 	d3.core.js \
 	d3.scale.js \
 	d3.svg.js \
+	d3.raphael.js \
 	d3.behavior.js \
 	d3.layout.js \
 	d3.dsv.js \
@@ -157,6 +158,13 @@ d3.svg.js: \
 	src/svg/symbol.js \
 	src/svg/axis.js \
 	src/svg/brush.js
+
+d3.raphael.js: \
+	src/raphael/raphael.js \
+	src/raphael/selectors.js \
+	src/raphael/root.js \
+	src/raphael/selection.js \
+	src/raphael/selection-enter.js
 
 d3.behavior.js: \
 	src/behavior/behavior.js \
