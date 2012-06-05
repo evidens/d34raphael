@@ -5,3 +5,12 @@
 Want to learn more? [See the wiki.](https://github.com/mbostock/d3/wiki)
 
 For examples, [see the gallery](https://github.com/mbostock/d3/wiki/Gallery) and [mbostock’s bl.ocks](http://bl.ocks.org/mbostock).
+
+## D34Raphael
+
+This branch is for working on and contributing to [D34Raphael](http://webmonarch.github.com/d34raphael/). So far, here I've implemented:
+
+* Class assignment and selection for Raphael elements
+    * Uses Sizzle for selection when appropriate
+* selection.remove()
+* Basic (attr) transitions
