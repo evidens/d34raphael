@@ -429,7 +429,9 @@ d3_raphael_selectionPrototype.transition = function() {
  * @function
  * @name D3RaphaelSelection#remove
  */
-d3_raphael_selectionPrototype.remove = d3_selectionPrototype.remove;
+d3_raphael_selectionPrototype.remove = function() {
+    return this.each(function() { this.remove(); });
+};
 
 d3_raphael_selectionPrototype.style = throw_raphael_not_supported;
 d3_raphael_selectionPrototype.html = throw_raphael_not_supported;
