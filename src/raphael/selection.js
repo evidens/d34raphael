@@ -409,7 +409,10 @@ d3_raphael_selectionPrototype.datum = d3_selectionPrototype.datum;
  * @function
  * @name D3RaphaelSelection#transition
  */
-d3_raphael_selectionPrototype.transition = function() {
+d3_raphael_selectionPrototype.transition = function(shouldTransition) {
+    // allow an easy way to toggle transitioning
+    if (shouldTransition === false) return this;
+
     // minor hack to sub out the dependency we want to inject.
     var old_d3_transitionPrototype = d3_transitionPrototype;
     d3_transitionPrototype = d3_raphael_transitionPrototype;
