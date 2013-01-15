@@ -3702,6 +3702,496 @@
     sw: "nesw-resize"
   };
   var d3_svg_brushResizes = [ [ "n", "e", "s", "w", "nw", "ne", "se", "sw" ], [ "e", "w" ], [ "n", "s" ], [] ];
+  d3.raphael = function(paper) {
+    var root = new D3RaphaelRoot(paper);
+    return d3_raphael_selection([ [ root.paper ] ], root);
+  };
+  function throw_raphael_not_supported() {
+    throw "Not Supported!";
+  }
+  function d3_raphael_pathArrayToString(pa) {
+    var ret = "";
+    for (var i = 0; i < pa.length; i++) {
+      var p = pa[i];
+      ret += p[0];
+      if (p[1]) ret += p[1].join(",");
+    }
+    return ret;
+  }
+  function d3_raphael_functify(f) {
+    return typeof f === "function" ? f : function() {
+      return f;
+    };
+  }
+  if (typeof Raphael !== "undefined") {
+    function d3_raphael_getCSSRule(ruleName, deleteFlag) {
+      ruleName = ruleName.toLowerCase();
+      if (document.styleSheets) {
+        for (var i = 0; i < document.styleSheets.length; i++) {
+          var styleSheet = document.styleSheets[i];
+          var ii = 0;
+          var cssRule = false;
+          do {
+            if (styleSheet.cssRules) {
+              cssRule = styleSheet.cssRules[ii];
+            } else {
+              cssRule = styleSheet.rules[ii];
+            }
+            if (cssRule) {
+              if (cssRule.selectorText.toLowerCase() == ruleName) {
+                if (deleteFlag == "delete") {
+                  if (styleSheet.cssRules) {
+                    styleSheet.deleteRule(ii);
+                  } else {
+                    styleSheet.removeRule(ii);
+                  }
+                  return true;
+                } else {
+                  return cssRule;
+                }
+              }
+            }
+            ii++;
+          } while (cssRule);
+        }
+      }
+      return false;
+    }
+    function d3_raphael_getCSSAttributes(selector) {
+      var rules = d3_raphael_getCSSRule(selector), attributes = {};
+      if (!rules) return false;
+      rules = rules.style.cssText.split(";");
+      for (var i = 0; i < rules.length; i++) {
+        var rule = rules[i].split(":");
+        if (rule[0] !== undefined && rule[1] !== undefined) var key = rule[0].replace(" ", ""), value = rule[1].replace(" ", "");
+        attributes[key] = value;
+      }
+      return attributes;
+    }
+    function d3_raphael_addClassesToClassName(className, addClass) {
+      var addClasses = addClass.split(" ");
+      var setClass = " " + className + " ";
+      for (var i = -1, m = addClasses.length; ++i < m; ) {
+        if (!~setClass.indexOf(" " + addClasses[i] + " ")) {
+          setClass += addClasses[i] + " ";
+        }
+      }
+      return setClass.slice(1, -1);
+    }
+    Raphael.st.addClass = function(addClass, parentSelector) {
+      if (Raphael.svg) {
+        for (var i = 0; i < this.length; i++) {
+          this[i].addClass(addClass);
+        }
+      } else {
+        var sel = "." + addClass;
+        sel = parentSelector ? parentSelector + " " + sel : sel;
+        var attributes = d3_raphael_getCSSAttributes(sel);
+        for (var i = 0; i < this.length; i++) {
+          this[i].attr(attributes);
+          this[i].node.className = d3_raphael_addClassesToClassName(this[i].node.className, addClass);
+        }
+      }
+    };
+    Raphael.el.addClass = function(addClass, parentSelector) {
+      if (Raphael.svg) {
+        var cssClass = this.node.getAttribute("class") !== null ? this.node.getAttribute("class") + " " + addClass : addClass;
+        this.node.setAttribute("class", cssClass);
+      } else {
+        var sel = "." + addClass;
+        sel = parentSelector ? parentSelector + " " + sel : sel;
+        var attributes = d3_raphael_getCSSAttributes(sel);
+        this.attr(attributes);
+        this.node.className = d3_raphael_addClassesToClassName(this.node.className, addClass);
+      }
+    };
+  }
+  if (typeof Raphael !== "undefined") {
+    function d3_raphael_addCustomAttributes(paper) {
+      paper.ca.d = function(path) {
+        return {
+          path: path
+        };
+      };
+    }
+  }
+  function d3_raphael_selector(s, d3_paper, first) {
+    var found = [];
+    var selectorParts = s.split(".");
+    var type = null;
+    if (selectorParts[0] === "") {
+      selectorParts.shift();
+    } else {
+      type = selectorParts.shift();
+    }
+    var requiredClasses = selectorParts;
+    var isMatch = function(el) {
+      if (type && el.type !== type) {
+        return false;
+      }
+      if (requiredClasses.length > 0) {
+        var classAttribute = el.node.getAttribute("class");
+        var elClassIndex = {};
+        if (classAttribute) {
+          var elClasses = classAttribute.split(" ");
+          for (var i = -1, m = elClasses.length; ++i < m; ) {
+            elClassIndex[elClasses[i]] = true;
+          }
+        }
+        for (var i = -1, m = requiredClasses.length; ++i < m; ) {
+          if (!elClassIndex[requiredClasses[i]]) {
+            return false;
+          }
+        }
+      }
+      return true;
+    };
+    d3_paper.forEach(function(el) {
+      if (isMatch(el)) {
+        found.push(el);
+        return !first;
+      }
+    });
+    return found;
+  }
+  var D3RaphaelRoot = function(paper) {
+    d3_raphael_addCustomAttributes(paper);
+    this.paper = paper;
+  };
+  D3RaphaelRoot.prototype.select = function(s) {
+    return d3_raphael_selection([ d3_raphael_selector(s, this, true) ], this);
+  };
+  D3RaphaelRoot.prototype.selectAll = function(s) {
+    return d3_raphael_selection([ d3_raphael_selector(s, this, false) ], this);
+  };
+  D3RaphaelRoot.prototype.create = function(type) {
+    if (d3_raphael_paperShapes.indexOf(type) < 0) throw "Unsupported shape: " + type;
+    return this[type]();
+  };
+  var d3_raphael_paperShapes = [ "circle", "ellipse", "rect", "text", "path" ];
+  var d3_raphael_paperDelegateMethods = d3_raphael_paperShapes.concat([ "forEach" ]);
+  function d3_raphael_rootToPaperDelegate(method_name) {
+    return function() {
+      return this.paper[method_name].apply(this.paper, arguments);
+    };
+  }
+  for (var i = 0; i < d3_raphael_paperDelegateMethods.length; i++) {
+    var method_name = d3_raphael_paperDelegateMethods[i];
+    D3RaphaelRoot.prototype[method_name] = d3_raphael_rootToPaperDelegate(method_name);
+  }
+  var d3_raphael_selection = function(groups, d3_raphael_root) {
+    d3_arraySubclass(groups, d3_raphael_selectionPrototype);
+    groups.root = d3_raphael_root;
+    return groups;
+  };
+  var d3_raphael_selectionPrototype = [];
+  d3_raphael_selectionPrototype.data = function(value, key_function) {
+    var old_d3_selection_enter = d3_selection_enter, old_d3_selection = d3_selection;
+    var selection = this;
+    d3_selection_enter = function(elems) {
+      return d3_raphael_enterSelection(elems, selection.root);
+    };
+    d3_selection = function(elems) {
+      return d3_raphael_selection(elems, selection.root);
+    };
+    var update = d3_selectionPrototype.data.call(this, value, key_function);
+    d3_selection_enter = old_d3_selection_enter;
+    d3_selection = old_d3_selection;
+    var enter = update.enter;
+    update.enter = function() {
+      return enter();
+    };
+    var exit = update.exit;
+    update.exit = function() {
+      return exit();
+    };
+    return update;
+  };
+  d3_raphael_selectionPrototype.append = function(type) {
+    var groups = [], group, nodeData;
+    for (var j = 0; j < this.length; j++) {
+      groups.push(group = []);
+      for (var i = 0; i < this[j].length; i++) {
+        if (nodeData = this[j][i]) {
+          var newNode = this.root.create(type);
+          if ("__data__" in nodeData) newNode.__data__ = nodeData.__data__;
+          group.push(newNode);
+        } else {
+          group.push(null);
+        }
+      }
+    }
+    return d3_raphael_selection(groups, this.root);
+  };
+  d3_raphael_selectionPrototype.attr = function(name, value) {
+    var valueF = typeof value === "function" ? value : function() {
+      return value;
+    };
+    this.each(function() {
+      var value = valueF.apply(this, arguments);
+      switch (name) {
+       case "class":
+        this.addClass(value);
+        break;
+
+       default:
+        this.attr(name, value);
+      }
+    });
+    return this;
+  };
+  d3_raphael_selectionPrototype.classed = function(name, add) {
+    var addF = d3_raphael_functify(add);
+    this.each(function() {
+      if (addF.apply(this, arguments)) this.addClass(name); else throw_raphael_not_supported();
+    });
+    return this;
+  };
+  d3_raphael_selectionPrototype.text = function(value) {
+    var valueF = d3_raphael_functify(value);
+    this.each(function() {
+      this.attr("text", valueF.apply(this, arguments));
+    });
+    return this;
+  };
+  var d3_raphael_supported_event_types = [ "click", "dblclick", "mousedown", "mousemove", "mouseout", "mouseover", "mouseup", "touchcancel", "touchend", "touchmove", "touchstart" ];
+  d3_raphael_selectionPrototype.on = function(type, handler, capture) {
+    if (capture) throw_raphael_not_supported();
+    if (!~d3_raphael_supported_event_types.indexOf(type)) {
+      throw_raphael_not_supported();
+    }
+    var name = "__d34r_on" + type, i = type.indexOf(".");
+    if (i > 0) type = type.substring(0, i);
+    if (arguments.length < 2) return (i = this.node[name]) && i._;
+    return this.each(function(d, i) {
+      var raphaelElement = this, o = raphaelElement[name];
+      if (o) {
+        raphaelElement["un" + type](o);
+        delete raphaelElement[name];
+      }
+      if (handler) {
+        var wrappedHandler = function(event) {
+          var o = d3.event;
+          d3.event = event;
+          try {
+            handler.call(raphaelElement, raphaelElement.__data__, i);
+          } finally {
+            d3.event = o;
+          }
+        };
+        raphaelElement[type](wrappedHandler);
+        wrappedHandler._ = handler;
+        raphaelElement[name] = wrappedHandler;
+      }
+    });
+  };
+  d3_raphael_selectionPrototype.select = function(s) {
+    return this.root.select(s);
+  };
+  d3_raphael_selectionPrototype.selectAll = function(s) {
+    return this.root.selectAll(s);
+  };
+  d3_raphael_selectionPrototype.each = d3_selectionPrototype.each;
+  d3_raphael_selectionPrototype.empty = d3_selectionPrototype.empty;
+  d3_raphael_selectionPrototype.node = d3_selectionPrototype.node;
+  d3_raphael_selectionPrototype.property = d3_selectionPrototype.property;
+  d3_raphael_selectionPrototype.call = d3_selectionPrototype.call;
+  d3_raphael_selectionPrototype.datum = d3_selectionPrototype.datum;
+  d3_raphael_selectionPrototype.transition = function(shouldTransition) {
+    if (shouldTransition === false) return this;
+    var old_d3_transitionPrototype = d3_transitionPrototype;
+    d3_transitionPrototype = d3_raphael_transitionPrototype;
+    var transition = d3_selectionPrototype.transition.call(this);
+    d3_transitionPrototype = old_d3_transitionPrototype;
+    return transition;
+  };
+  d3_raphael_selectionPrototype.remove = function() {
+    return this.each(function() {
+      this.remove();
+    });
+  };
+  d3_raphael_selectionPrototype.style = throw_raphael_not_supported;
+  d3_raphael_selectionPrototype.html = throw_raphael_not_supported;
+  d3_raphael_selectionPrototype.insert = throw_raphael_not_supported;
+  d3_raphael_selectionPrototype.filter = throw_raphael_not_supported;
+  d3_raphael_selectionPrototype.sort = throw_raphael_not_supported;
+  d3_raphael_selectionPrototype.order = throw_raphael_not_supported;
+  function d3_raphael_enterSelection(groups, d3_raphael_root) {
+    d3_arraySubclass(groups, d3_raphael_enterSelectionPrototype);
+    groups.root = d3_raphael_root;
+    return groups;
+  }
+  var d3_raphael_enterSelectionPrototype = [];
+  d3_raphael_enterSelectionPrototype.append = function(type) {
+    if (d3_raphael_paperShapes.indexOf(type) < 0) throw TypeError("Type Not Supported");
+    var groups = [], group, upgroup, nodeData;
+    for (var j = 0; j < this.length; j++) {
+      groups.push(group = []);
+      upgroup = this[j].update;
+      for (var i = 0; i < this[j].length; i++) {
+        if (nodeData = this[j][i]) {
+          var newNode = this.root[type]();
+          if ("__data__" in nodeData) newNode.__data__ = nodeData.__data__;
+          group.push(newNode);
+          upgroup[i] = newNode;
+        } else {
+          group.push(null);
+        }
+      }
+    }
+    return d3_raphael_selection(groups, this.root);
+  };
+  d3_raphael_enterSelectionPrototype.empty = d3_selectionPrototype.empty;
+  d3_raphael_enterSelectionPrototype.node = d3_selectionPrototype.node;
+  d3_raphael_enterSelectionPrototype.insert = throw_raphael_not_supported;
+  var d3_raphael_transitionPrototype = [];
+  d3_raphael_transitionPrototype.attr = d3_transitionPrototype.attr;
+  d3_raphael_transitionPrototype.attrTween = function(name, tween) {
+    function attrTween(d, i) {
+      var f = tween.call(this, d, i, this.attr(name));
+      return f === d3_transitionRemove ? (this.attr(name, null), null) : f && function(t) {
+        this.attr(name, f(t));
+      };
+    }
+    return this.tween("attr." + name, attrTween);
+  };
+  d3_raphael_transitionPrototype.delay = d3_transitionPrototype.duration;
+  d3_raphael_transitionPrototype.duration = d3_transitionPrototype.duration;
+  d3_raphael_transitionPrototype.duration = d3_transitionPrototype.duration;
+  d3_raphael_transitionPrototype.text = d3_raphael_selectionPrototype.text;
+  d3_raphael_transitionPrototype.remove = d3_transitionPrototype.remove;
+  d3_raphael_transitionPrototype.style = throw_raphael_not_supported;
+  d3_raphael_transitionPrototype.styleTween = throw_raphael_not_supported;
+  d3_raphael_transitionPrototype.select = throw_raphael_not_supported;
+  d3_raphael_transitionPrototype.selectAll = throw_raphael_not_supported;
+  d3.raphael.axis = function() {
+    var scale = d3.scale.linear(), orient = "bottom", tickMajorSize = 6, tickMinorSize = 6, tickEndSize = 6, tickPadding = 3, tickArguments_ = [ 10 ], tickValues = null, tickFormat_, tickSubdivide = 0;
+    var top = 0, left = 0;
+    var classPrefix = "";
+    function axis(selection) {
+      selection.each(function() {
+        var g = selection.root.select("");
+        var ticks = tickValues == null ? scale.ticks ? scale.ticks.apply(scale, tickArguments_) : scale.domain() : tickValues, tickFormat = tickFormat_ == null ? scale.tickFormat ? scale.tickFormat.apply(scale, tickArguments_) : String : tickFormat_;
+        var tick = g.selectAll("g").data(ticks, String), tickEnter = tick.enter().append("path").classed(classPrefix + "path", true);
+        var text = tick.append("text").attr("text", tickFormat);
+        var range = d3_scaleRange(scale), path = g.selectAll(".domain").data([ 0 ]), pathEnter = path.enter().append("path").classed(classPrefix + "pathdomain", true);
+        var scale1 = scale.copy(), scale0 = this.__chart__ || scale1;
+        this.__chart__ = scale1;
+        switch (orient) {
+         case "top":
+          {
+            tick.attr("path", function(d) {
+              return d3_raphael_pathArrayToString([ [ "M", [ left + scale1(d), top ] ], [ "l", [ 0, -tickMajorSize ] ] ]);
+            });
+            text.attr("x", function(d) {
+              return scale1(d) + left + (scale1.rangeBand ? scale1.rangeBand() / 2 : 0);
+            }).attr("y", top - 7).attr("text-anchor", "middle");
+            path.attr("path", "M" + (range[0] + left) + "," + (-tickEndSize + top) + "v" + tickEndSize + "H" + (range[1] + left) + "v" + -tickEndSize);
+            break;
+          }
+
+         case "bottom":
+          {
+            tick.attr("path", function(d) {
+              return d3_raphael_pathArrayToString([ [ "M", [ left + scale1(d), top ] ], [ "l", [ 0, tickMajorSize ] ] ]);
+            });
+            text.attr("x", function(d) {
+              return scale1(d) + left + (scale1.rangeBand ? scale1.rangeBand() / 2 : 0);
+            }).attr("y", top + tickMajorSize + 7).attr("text-anchor", "middle");
+            path.attr("path", "M" + (range[0] + left) + "," + (tickEndSize + top) + "v" + -tickEndSize + "H" + (range[1] + left) + "v" + tickEndSize);
+            break;
+          }
+
+         case "left":
+          {
+            tick.attr("path", function(d) {
+              return d3_raphael_pathArrayToString([ [ "M", [ left, scale1(d) + top ] ], [ "l", [ -tickMajorSize, 0 ] ] ]);
+            });
+            path.attr("path", "M" + (-tickEndSize + left) + "," + (range[0] + top) + "h" + tickEndSize + "V" + (range[1] + top) + "h" + -tickEndSize);
+            text.attr("x", left - 5).attr("y", function(d) {
+              return scale1(d) + top + (scale1.rangeBand ? scale1.rangeBand() / 2 : 0);
+            }).attr("text-anchor", "end");
+            break;
+          }
+
+         default:
+          {
+            throw "Unsupported " + orient;
+          }
+        }
+      });
+    }
+    axis.scale = function(x) {
+      if (!arguments.length) return scale;
+      scale = x;
+      return axis;
+    };
+    axis.orient = function(x) {
+      if (!arguments.length) return orient;
+      orient = x;
+      return axis;
+    };
+    axis.ticks = function() {
+      if (!arguments.length) return tickArguments_;
+      tickArguments_ = arguments;
+      return axis;
+    };
+    axis.tickFormat = function(x) {
+      if (!arguments.length) return tickFormat_;
+      tickFormat_ = x;
+      return axis;
+    };
+    axis.tickSize = function(x, y, z) {
+      if (!arguments.length) return tickMajorSize;
+      var n = arguments.length - 1;
+      tickMajorSize = +x;
+      tickMinorSize = n > 1 ? +y : tickMajorSize;
+      tickEndSize = n > 0 ? +arguments[n] : tickMajorSize;
+      return axis;
+    };
+    axis.tickValues = function(x) {
+      if (!arguments.length) return tickValues;
+      tickValues = x;
+      return axis;
+    };
+    axis.top = function(val) {
+      if (typeof val === "undefined") return top; else top = val;
+      return this;
+    };
+    axis.left = function(val) {
+      if (typeof val === "undefined") return left; else left = val;
+      return this;
+    };
+    axis.classPrefix = function(val) {
+      if (typeof val === "undefined") return classPrefix; else classPrefix = val;
+      return this;
+    };
+    return axis;
+  };
+  if (typeof Sizzle === "function") {
+    var d3_raphael_obj_from_dom = function(domElems, d3_paper) {
+      var elemCount = domElems.length;
+      var domElemIndex = {};
+      for (var i = -1; ++i < elemCount; ) {
+        domElemIndex[domElems[i].raphaelid] = true;
+      }
+      var raphaelElems = [];
+      var bot = d3_paper.paper.bottom;
+      while (bot && raphaelElems.length < elemCount) {
+        if (domElemIndex[bot.id]) {
+          raphaelElems.push(bot);
+        }
+        bot = bot.next;
+      }
+      return raphaelElems;
+    };
+    D3RaphaelRoot.prototype.select = function(s) {
+      return d3_raphael_selection([ d3_raphael_obj_from_dom(Sizzle(s, this.paper.canvas)[0], this) ], this);
+    };
+    D3RaphaelRoot.prototype.selectAll = function(s) {
+      return d3_raphael_selection([ d3_raphael_obj_from_dom(Sizzle.uniqueSort(Sizzle(s, this.paper.canvas)), this) ], this);
+    };
+  }
   d3.behavior = {};
   d3.behavior.drag = function() {
     var event = d3_eventDispatch(drag, "drag", "dragstart", "dragend"), origin = null;
